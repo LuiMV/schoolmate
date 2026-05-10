@@ -154,3 +154,54 @@ create policy "Teachers can upload resources"
 create policy "Anyone can view resources"
   on storage.objects for select
   using (bucket_id = 'course-resources');
+
+-- 7. INVITE CODE FOR COURSES (for student join-by-code)
+alter table courses add column invite_code text unique;
+
+-- 8. ENROLLMENTS (student course membership)
+create table enrollments (
+  id uuid default gen_random_uuid() primary key,
+  student_id uuid not null references profiles(id) on delete cascade,
+  course_id uuid not null references courses(id) on delete cascade,
+  enrolled_at timestamptz default now(),
+  unique (student_id, course_id)
+);
+
+alter table enrollments enable row level security;
+
+create policy "Students can manage their enrollments"
+  on enrollments for all
+  using (student_id = auth.uid());
+
+-- Teachers view enrollments via course queries; removed to avoid RLS recursion
+
+-- Update course select policy to also allow enrolled students
+create policy "Students can view courses by enrollment"
+  on courses for select
+  using (
+    exists (
+      select 1 from enrollments
+      where enrollments.course_id = courses.id
+        and enrollments.student_id = auth.uid()
+    )
+  );
+
+-- Update resources policy to also allow enrolled students
+drop policy if exists "Students can view course resources" on resources;
+create policy "Students can view course resources"
+  on resources for select
+  using (
+    exists (
+      select 1 from courses
+      join profiles on profiles.id = auth.uid()
+      where courses.id = resources.course_id
+        and (
+          courses.grade = profiles.grade and courses.section = profiles.section
+          or exists (
+            select 1 from enrollments
+            where enrollments.course_id = courses.id
+              and enrollments.student_id = auth.uid()
+          )
+        )
+    )
+  );

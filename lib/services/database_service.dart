@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/course.dart';
 import '../models/resource.dart';
@@ -7,6 +8,7 @@ import '../models/quiz_result.dart';
 
 class DatabaseService {
   final _supabase = Supabase.instance.client;
+  final _random = Random();
 
   // ------ Teacher: Courses ------
   Future<List<Course>> getTeacherCourses(String teacherId) async {
@@ -18,10 +20,25 @@ class DatabaseService {
     return data.map((e) => Course.fromMap(e)).toList();
   }
 
+  Future<String> _generateUniqueCode() async {
+    while (true) {
+      final code = (100000 + _random.nextInt(900000)).toString();
+      final existing = await _supabase
+          .from('courses')
+          .select('id')
+          .eq('invite_code', code)
+          .maybeSingle();
+      if (existing == null) return code;
+    }
+  }
+
   Future<Course> createCourse(Course course) async {
+    final code = await _generateUniqueCode();
+    final map = course.toMap();
+    map['invite_code'] = code;
     final data = await _supabase
         .from('courses')
-        .insert(course.toMap())
+        .insert(map)
         .select()
         .single();
     return Course.fromMap(data);
@@ -40,6 +57,33 @@ class DatabaseService {
         .eq('section', section)
         .order('created_at', ascending: false);
     return data.map((e) => Course.fromMap(e)).toList();
+  }
+
+  // ------ Student: Join by invite code ------
+  Future<Course?> getCourseByInviteCode(String code) async {
+    final data = await _supabase
+        .from('courses')
+        .select('*')
+        .eq('invite_code', code)
+        .maybeSingle();
+    if (data == null) return null;
+    return Course.fromMap(data);
+  }
+
+  Future<void> joinCourse(String courseId, String studentId) async {
+    await _supabase.from('enrollments').insert({
+      'student_id': studentId,
+      'course_id': courseId,
+    });
+  }
+
+  Future<List<Course>> getEnrolledCourses(String studentId) async {
+    final data = await _supabase
+        .from('enrollments')
+        .select('courses(*)')
+        .eq('student_id', studentId)
+        .order('enrolled_at', ascending: false);
+    return data.map((e) => Course.fromMap(e['courses'] as Map<String, dynamic>)).toList();
   }
 
   // ------ Resources ------

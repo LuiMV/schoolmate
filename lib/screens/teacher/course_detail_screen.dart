@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../models/course.dart';
 import '../../models/resource.dart';
 import '../../services/database_service.dart';
@@ -107,6 +108,41 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
               padding: const EdgeInsets.only(top: 8),
               child: Text(course.description!, style: const TextStyle(color: Colors.white60, fontSize: 13)),
             ),
+          if (course.inviteCode != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.vpn_key_rounded, color: Colors.white70, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Invite Code: ',
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13),
+                  ),
+                  Text(
+                    course.inviteCode!,
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 3),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: course.inviteCode!));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Code copied!'), duration: Duration(seconds: 1)),
+                      );
+                    },
+                    child: Icon(Icons.copy_rounded, color: Colors.white.withValues(alpha: 0.6), size: 18),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

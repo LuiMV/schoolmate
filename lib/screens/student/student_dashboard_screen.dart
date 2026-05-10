@@ -21,6 +21,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   String _userName = '';
   String _grade = '';
   String _section = '';
+  String _studentId = '';
   bool _isLoading = true;
 
   @override
@@ -35,17 +36,96 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
     final grade = profile['grade'] as String? ?? '';
     final section = profile['section'] as String? ?? '';
+    final studentId = profile['id'] as String? ?? '';
 
-    final courses = await _dbService.getStudentCourses(grade, section);
+    final enrolledCourses = await _dbService.getEnrolledCourses(studentId);
+    final gradeCourses = await _dbService.getStudentCourses(grade, section);
+
+    final merged = <String, Course>{};
+    for (final c in enrolledCourses) {
+      merged[c.id] = c;
+    }
+    for (final c in gradeCourses) {
+      merged.putIfAbsent(c.id, () => c);
+    }
 
     if (!mounted) return;
     setState(() {
       _userName = profile['name'] as String? ?? 'Student';
       _grade = grade;
       _section = section;
-      _courses = courses;
+      _studentId = studentId;
+      _courses = merged.values.toList();
       _isLoading = false;
     });
+  }
+
+  Future<void> _showJoinDialog() async {
+    final codeCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Join a Course'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: codeCtrl,
+            maxLength: 6,
+            textAlign: TextAlign.center,
+            keyboardType: TextInputType.number,
+            style: const TextStyle(fontSize: 24, letterSpacing: 6, fontWeight: FontWeight.bold),
+            decoration: const InputDecoration(
+              labelText: 'Enter 6-digit code',
+              hintText: '000000',
+              counterText: '',
+            ),
+            validator: (v) {
+              if (v == null || v.trim().length != 6) return 'Enter a valid 6-digit code';
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) Navigator.pop(ctx, true);
+            },
+            child: const Text('Join'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != true) return;
+
+    final code = codeCtrl.text.trim();
+    final course = await _dbService.getCourseByInviteCode(code);
+
+    if (!mounted) return;
+
+    if (course == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid code. No course found.')),
+      );
+      return;
+    }
+
+    try {
+      await _dbService.joinCourse(course.id, _studentId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Joined "${course.name}" successfully!')),
+      );
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('You are already in this course.')),
+      );
+    }
   }
 
   @override
@@ -57,6 +137,11 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.vpn_key_rounded),
+            tooltip: 'Join by Code',
+            onPressed: _showJoinDialog,
+          ),
           IconButton(
             icon: const Icon(Icons.auto_awesome_rounded),
             tooltip: 'AI Assistant',

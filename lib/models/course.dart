@@ -6,6 +6,7 @@ class Course {
   final String subject;
   final String grade;
   final String section;
+  final String? inviteCode;
   final DateTime createdAt;
 
   Course({
@@ -16,6 +17,7 @@ class Course {
     required this.subject,
     required this.grade,
     required this.section,
+    this.inviteCode,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -28,6 +30,7 @@ class Course {
       subject: map['subject'] ?? '',
       grade: map['grade'] ?? '',
       section: map['section'] ?? '',
+      inviteCode: map['invite_code'],
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'].toString())
           : DateTime.now(),
@@ -41,5 +44,6 @@ class Course {
         'subject': subject,
         'grade': grade,
         'section': section,
+        if (inviteCode != null) 'invite_code': inviteCode,
       };
 }

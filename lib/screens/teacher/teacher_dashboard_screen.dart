@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
 import '../../models/course.dart';
@@ -123,8 +124,66 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       description: descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
     );
 
-    await _dbService.createCourse(course);
+    Course? created;
+    try {
+      created = await _dbService.createCourse(course);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error creating course: $e'), backgroundColor: Colors.red),
+      );
+      return;
+    }
     _load();
+
+    if (!mounted || created == null || created.inviteCode == null) return;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Course Created!'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Share this code with your students:'),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    created!.inviteCode!,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 6,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  IconButton(
+                    icon: const Icon(Icons.copy_rounded),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: created!.inviteCode!));
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(content: Text('Code copied!')),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Done')),
+        ],
+      ),
+    );
   }
 
   @override
@@ -182,6 +241,29 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     );
   }
 
+  Future<void> _deleteCourse(Course course) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Course'),
+        content: Text('Are you sure you want to delete "${course.name}"? This action cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    await _dbService.deleteCourse(course.id);
+    _load();
+  }
+
   Widget _buildCourseCard(Course course) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -219,6 +301,35 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       '${course.subject}  ·  Grade ${course.grade}-${course.section}',
                       style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                     ),
+                    if (course.inviteCode != null) ...[
+                      const SizedBox(height: 6),
+                      GestureDetector(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: course.inviteCode!));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Code copied!'), duration: Duration(seconds: 1)),
+                          );
+                        },
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.vpn_key_rounded, size: 14, color: Colors.grey[600]),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Code: ${course.inviteCode}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 2,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(Icons.copy_rounded, size: 14, color: Colors.grey[400]),
+                          ],
+                        ),
+                      ),
+                    ],
                     if (course.description != null && course.description!.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
@@ -227,7 +338,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: Colors.grey),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                tooltip: 'Delete course',
+                onPressed: () => _deleteCourse(course),
+              ),
             ],
           ),
         ),
