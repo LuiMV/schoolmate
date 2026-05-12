@@ -136,7 +136,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     }
     _load();
 
-    if (!mounted || created == null || created.inviteCode == null) return;
+    if (!mounted || created.inviteCode == null) return;
 
     await showDialog(
       context: context,

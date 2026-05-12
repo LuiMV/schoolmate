@@ -1,5 +1,6 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../models/course.dart';
 import '../../models/resource.dart';
 import '../../services/database_service.dart';
@@ -23,7 +24,7 @@ class _UploadResourceScreenState extends State<UploadResourceScreen> {
   final _authService = AuthService();
 
   String _selectedType = 'document';
-  File? _selectedFile;
+  Uint8List? _selectedBytes;
   String? _fileName;
   bool _isUploading = false;
 
@@ -44,7 +45,7 @@ class _UploadResourceScreenState extends State<UploadResourceScreen> {
       return;
     }
 
-    if (_selectedType != 'url' && _selectedFile == null) {
+    if (_selectedType != 'url' && _selectedBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a file')),
       );
@@ -57,14 +58,15 @@ class _UploadResourceScreenState extends State<UploadResourceScreen> {
       String? fileUrl;
       String? filePath;
 
-      if (_selectedType != 'url' && _selectedFile != null) {
+      if (_selectedType != 'url' && _selectedBytes != null && _fileName != null) {
         final user = _authService.currentUser;
         fileUrl = await _storageService.uploadFile(
           user!.id,
           widget.course.id,
-          _selectedFile!,
+          _selectedBytes!,
+          _fileName!,
         );
-        filePath = _selectedFile!.path;
+        filePath = _fileName;
       }
 
       final resource = Resource(
@@ -169,7 +171,7 @@ class _UploadResourceScreenState extends State<UploadResourceScreen> {
             child: GestureDetector(
               onTap: () => setState(() {
                 _selectedType = t['type'] as String;
-                _selectedFile = null;
+                _selectedBytes = null;
                 _fileName = null;
               }),
               child: AnimatedContainer(
@@ -215,6 +217,44 @@ class _UploadResourceScreenState extends State<UploadResourceScreen> {
     );
   }
 
+  Future<void> _pickFile() async {
+    try {
+      final typeMap = {
+        'document': FileType.custom,
+        'video': FileType.video,
+        'image': FileType.image,
+      };
+
+      FilePickerResult? result;
+
+      if (_selectedType == 'document') {
+        result = await FilePicker.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt'],
+          withData: true,
+        );
+      } else {
+        result = await FilePicker.pickFiles(
+          type: typeMap[_selectedType] ?? FileType.any,
+          withData: true,
+        );
+      }
+
+      if (result == null || result.files.isEmpty) return;
+      final picked = result.files.single;
+
+      setState(() {
+        _selectedBytes = picked.bytes;
+        _fileName = picked.name;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error selecting file: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   Widget _buildFilePicker() {
     return Container(
       width: double.infinity,
@@ -240,14 +280,7 @@ class _UploadResourceScreenState extends State<UploadResourceScreen> {
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('File picker opens here (requires file_picker package)'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
+            onPressed: _pickFile,
             icon: const Icon(Icons.folder_open),
             label: const Text('Browse Files'),
             style: OutlinedButton.styleFrom(

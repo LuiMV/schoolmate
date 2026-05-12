@@ -186,6 +186,11 @@ create policy "Students can view courses by enrollment"
     )
   );
 
+-- Allow any authenticated user to look up a course by invite code (needed for join flow)
+create policy "Anyone can look up courses by invite code"
+  on courses for select
+  using (invite_code is not null);
+
 -- Update resources policy to also allow enrolled students
 drop policy if exists "Students can view course resources" on resources;
 create policy "Students can view course resources"
