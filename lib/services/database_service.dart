@@ -5,6 +5,9 @@ import '../models/resource.dart';
 import '../models/comprehension_score.dart';
 import '../models/ai_feedback.dart';
 import '../models/quiz_result.dart';
+import '../models/chat_session.dart';
+import '../models/chat_message.dart';
+import '../models/resource_analysis.dart';
 
 class DatabaseService {
   final _supabase = Supabase.instance.client;
@@ -190,5 +193,65 @@ class DatabaseService {
       final result = QuizResult.fromMap(e);
       return result;
     }).toList();
+  }
+
+  // ------ Chat Sessions ------
+  Future<ChatSession> createChatSession(ChatSession session) async {
+    final data = await _supabase
+        .from('chat_sessions')
+        .insert(session.toMap())
+        .select()
+        .single();
+    return ChatSession.fromMap(data);
+  }
+
+  Future<List<ChatSession>> getChatSessions(String userId) async {
+    final data = await _supabase
+        .from('chat_sessions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('updated_at', ascending: false);
+    return data.map((e) => ChatSession.fromMap(e)).toList();
+  }
+
+  Future<void> deleteChatSession(String sessionId) async {
+    await _supabase.from('chat_sessions').delete().eq('id', sessionId);
+  }
+
+  Future<void> updateChatSessionTitle(String sessionId, String title) async {
+    await _supabase
+        .from('chat_sessions')
+        .update({'title': title, 'updated_at': DateTime.now().toIso8601String()})
+        .eq('id', sessionId);
+  }
+
+  // ------ Chat Messages ------
+  Future<ChatMessage> createChatMessage(ChatMessage message) async {
+    final data = await _supabase
+        .from('chat_messages')
+        .insert(message.toMap())
+        .select()
+        .single();
+    return ChatMessage.fromMap(data);
+  }
+
+  Future<List<ChatMessage>> getChatMessages(String sessionId) async {
+    final data = await _supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('created_at', ascending: true);
+    return data.map((e) => ChatMessage.fromMap(e)).toList();
+  }
+
+  // ------ Resource Analysis ------
+  Future<ResourceAnalysis?> getResourceAnalysis(String resourceId) async {
+    final data = await _supabase
+        .from('resource_analysis')
+        .select('*')
+        .eq('resource_id', resourceId)
+        .maybeSingle();
+    if (data == null) return null;
+    return ResourceAnalysis.fromMap(data);
   }
 }

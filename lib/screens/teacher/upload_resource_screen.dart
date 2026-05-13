@@ -6,6 +6,8 @@ import '../../models/resource.dart';
 import '../../services/database_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/edge_function_service.dart';
+import '../../services/text_extraction_service.dart';
 
 class UploadResourceScreen extends StatefulWidget {
   final Course course;
@@ -80,13 +82,29 @@ class _UploadResourceScreenState extends State<UploadResourceScreen> {
         fileName: _fileName,
       );
 
-      await _dbService.createResource(resource);
+      final created = await _dbService.createResource(resource);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Resource uploaded successfully'), backgroundColor: Colors.green),
+        const SnackBar(content: Text('Resource uploaded, analyzing with AI...'), backgroundColor: Colors.green),
       );
-      Navigator.pop(context);
+
+      if (_selectedType != 'url' && _selectedBytes != null) {
+        try {
+          final textService = TextExtractionService();
+          final fileText = await textService.extractTextFromBytes(_selectedBytes!, _fileName ?? '');
+          await EdgeFunctionService().invokeIngestion(
+            resourceId: created.id,
+            fileText: fileText,
+            title: created.title,
+          );
+        } catch (e) {
+          // Ingestion failure is non-critical
+        }
+      }
+
+      if (!mounted) return;
+      Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

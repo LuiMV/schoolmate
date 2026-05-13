@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/resource.dart';
 
 class StorageService {
   final _supabase = Supabase.instance.client;
@@ -14,5 +15,15 @@ class StorageService {
 
   Future<void> deleteFile(String path) async {
     await _supabase.storage.from(_bucket).remove([path]);
+  }
+
+  /// Returns the download URL for a resource.
+  /// For URL-type resources, returns the stored URL directly.
+  /// For file-type resources, returns the Supabase Storage public URL.
+  String getDownloadUrl(Resource resource) {
+    if (resource.type == 'url' && resource.url != null) {
+      return resource.url!;
+    }
+    return resource.url ?? '';
   }
 }

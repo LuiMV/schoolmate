@@ -37,6 +37,8 @@ dependencies:
   supabase_flutter: ^2.6.0
   http: ^1.2.1
   file_picker: ^11.0.2
+  url_launcher: ^6.2.0
+  syncfusion_flutter_pdf: ^33.2.6
 
 dev_dependencies:
   flutter_test:

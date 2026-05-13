@@ -3,6 +3,7 @@ import '../../models/course.dart';
 import '../../models/ai_feedback.dart';
 import '../../services/database_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/edge_function_service.dart';
 
 class AiFeedbackScreen extends StatefulWidget {
   final Course course;
@@ -47,16 +48,43 @@ class _AiFeedbackScreenState extends State<AiFeedbackScreen> {
     final user = _authService.currentUser;
     if (user == null) return;
 
-    final feedback = AiFeedback(
-      id: '',
-      courseId: widget.course.id,
-      teacherId: user.id,
-      feedbackType: _selectedType,
-      requestText: _requestCtrl.text.trim(),
-    );
-
-    await _dbService.createFeedback(feedback);
+    final requestText = _requestCtrl.text.trim();
     _requestCtrl.clear();
+    setState(() => _isLoading = true);
+
+    try {
+      final prompt = _selectedType == 'resource_analysis'
+          ? 'As a teaching assistant, analyze this request about course resources for ${widget.course.name} (${widget.course.subject}): $requestText'
+          : 'As a teaching assistant, analyze these common student difficulties for ${widget.course.name} (${widget.course.subject}): $requestText';
+
+      final responseText = await EdgeFunctionService().invokeChat(
+        sessionId: '', // teacher feedback uses one-off calls without session
+        message: prompt,
+        subject: widget.course.subject,
+      );
+
+      final feedback = AiFeedback(
+        id: '',
+        courseId: widget.course.id,
+        teacherId: user.id,
+        feedbackType: _selectedType,
+        requestText: requestText,
+        responseText: responseText,
+      );
+
+      await _dbService.createFeedback(feedback);
+    } catch (e) {
+      final feedback = AiFeedback(
+        id: '',
+        courseId: widget.course.id,
+        teacherId: user.id,
+        feedbackType: _selectedType,
+        requestText: requestText,
+        responseText: 'Error generating AI response: $e',
+      );
+      await _dbService.createFeedback(feedback);
+    }
+
     _load();
   }
 

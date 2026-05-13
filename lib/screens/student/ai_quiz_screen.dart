@@ -7,7 +7,8 @@ import '../../services/auth_service.dart';
 
 class AiQuizScreen extends StatefulWidget {
   final Course course;
-  const AiQuizScreen({super.key, required this.course});
+  final String? resourceId;
+  const AiQuizScreen({super.key, required this.course, this.resourceId});
 
   @override
   State<AiQuizScreen> createState() => _AiQuizScreenState();
@@ -33,6 +34,34 @@ class _AiQuizScreenState extends State<AiQuizScreen> {
   }
 
   Future<void> _generateQuiz() async {
+    if (widget.resourceId != null) {
+      final analysis = await _dbService.getResourceAnalysis(widget.resourceId!);
+      if (analysis?.quiz != null) {
+        final quiz = analysis!.quiz!;
+        if (quiz['questions'] is List) {
+          final loaded = (quiz['questions'] as List).map((q) {
+            final qMap = q as Map<String, dynamic>;
+            return QuizQuestion(
+              question: qMap['question'] ?? '',
+              options: (qMap['options'] as List?)?.cast<String>() ?? [],
+              correctIndex: qMap['correct_index'] is int
+                  ? qMap['correct_index'] as int
+                  : int.tryParse(qMap['correct_index']?.toString() ?? '0') ?? 0,
+              explanation: qMap['explanation'],
+            );
+          }).toList();
+          if (loaded.isNotEmpty) {
+            if (!mounted) return;
+            setState(() {
+              _questions = loaded;
+              _isGenerating = false;
+            });
+            return;
+          }
+        }
+      }
+    }
+
     final questions = await AiService.generateQuiz(
       subject: widget.course.subject,
       topic: _topic,
