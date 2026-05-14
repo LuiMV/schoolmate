@@ -262,6 +262,7 @@ create table resource_analysis (
   id uuid default gen_random_uuid() primary key,
   resource_id uuid not null references resources(id) on delete cascade unique,
   summary text,
+  full_text text,
   metadata jsonb,
   tags text[],
   flashcards jsonb,

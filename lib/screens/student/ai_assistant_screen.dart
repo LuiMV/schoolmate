@@ -60,6 +60,9 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       );
       _activeSession = session;
       await _loadMessages();
+      if (_messages.isEmpty && widget.resourceId != null) {
+        await _sendInitialContext();
+      }
     } else {
       _sessions = await _chatService.getSessions(userId);
       if (_sessions.isEmpty) {
@@ -82,6 +85,29 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     if (!mounted) return;
     setState(() => _messages..clear()..addAll(msgs));
     _scrollToBottom();
+  }
+
+  Future<void> _sendInitialContext() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await _chatService.sendMessage(
+        sessionId: _activeSession!.id,
+        content: 'I am studying "${widget.resourceTitle}" (${widget.resourceType ?? 'resource'}). Help me understand the key concepts from this document.',
+        resourceId: widget.resourceId,
+        subject: _selectedSubject,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _messages.add(ChatMessage(id: '', sessionId: _activeSession!.id, role: 'user', content: 'I am studying "${widget.resourceTitle}". Help me understand the key concepts from this document.'));
+        _messages.add(ChatMessage(id: '', sessionId: _activeSession!.id, role: 'assistant', content: response));
+      });
+      _scrollToBottom();
+    } catch (_) {}
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
   }
 
   Future<void> _startNewChat() async {

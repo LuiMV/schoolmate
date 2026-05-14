@@ -8,6 +8,7 @@ import '../models/quiz_result.dart';
 import '../models/chat_session.dart';
 import '../models/chat_message.dart';
 import '../models/resource_analysis.dart';
+import '../models/quiz_analytics.dart';
 
 class DatabaseService {
   final _supabase = Supabase.instance.client;
@@ -253,5 +254,89 @@ class DatabaseService {
         .maybeSingle();
     if (data == null) return null;
     return ResourceAnalysis.fromMap(data);
+  }
+
+  // ------ Quiz Analytics (teacher) ------
+  Future<QuizAnalytics> getQuizAnalytics(String courseId) async {
+    final data = await _supabase
+        .from('quiz_results')
+        .select('*, profiles!student_id(name)')
+        .eq('course_id', courseId)
+        .order('completed_at', ascending: false);
+
+    final questionStats = <String, int>{};
+    final questionAttempts = <String, int>{};
+    final questionData = <String, Map<String, dynamic>>{};
+    final studentBest = <String, Map<String, dynamic>>{};
+
+    for (final row in data) {
+      final result = QuizResult.fromMap(row);
+      final studentName = (row['profiles'] as Map?)?['name'] as String? ?? 'Unknown';
+
+      for (final answer in result.answers) {
+        final qIdx = answer['question_index'] as int;
+        final selected = answer['selected_index'] as int;
+
+        if (qIdx < result.questions.length) {
+          final q = result.questions[qIdx];
+          final qText = q['question'] as String;
+          final correct = q['correct_index'] as int;
+
+          questionAttempts[qText] = (questionAttempts[qText] ?? 0) + 1;
+          questionData[qText] = q;
+
+          if (selected != correct) {
+            questionStats[qText] = (questionStats[qText] ?? 0) + 1;
+          }
+        }
+      }
+
+      final sid = result.studentId;
+      if (!studentBest.containsKey(sid) || result.score > (studentBest[sid]!['score'] as int)) {
+        studentBest[sid] = {
+          'studentId': sid,
+          'studentName': studentName,
+          'score': result.score,
+          'totalQuestions': result.totalQuestions,
+          'correctAnswers': result.correctAnswers,
+          'subject': result.subject,
+          'topic': result.topic,
+          'completedAt': result.completedAt,
+        };
+      }
+    }
+
+    final difficult = questionData.entries
+        .map((e) {
+          final wrong = questionStats[e.key] ?? 0;
+          final total = questionAttempts[e.key] ?? 1;
+          return QuestionDifficulty(
+            question: e.key,
+            options: (e.value['options'] as List).cast<String>(),
+            correctIndex: e.value['correct_index'] as int,
+            explanation: e.value['explanation'] as String?,
+            wrongCount: wrong,
+            totalAttempts: total,
+            wrongPercentage: (wrong / total) * 100,
+          );
+        })
+        .toList()
+      ..sort((a, b) => b.wrongPercentage.compareTo(a.wrongPercentage));
+
+    final top = studentBest.values
+        .map((e) => StudentTopScore(
+              studentId: e['studentId'] as String,
+              studentName: e['studentName'] as String,
+              score: e['score'] as int,
+              totalQuestions: e['totalQuestions'] as int,
+              correctAnswers: e['correctAnswers'] as int,
+              subject: e['subject'] as String,
+              topic: e['topic'] as String?,
+              completedAt: e['completedAt'] as DateTime,
+            ))
+        .toList()
+      ..sort((a, b) => b.score.compareTo(a.score));
+
+    return QuizAnalytics(difficultQuestions: difficult, topScores: top);
   }
 }

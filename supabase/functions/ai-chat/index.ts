@@ -73,12 +73,12 @@ serve(async (req: Request) => {
     if (effectiveResourceId) {
       const { data: analysis } = await supabase
         .from("resource_analysis")
-        .select("summary, tags, flashcards")
+        .select("summary, full_text, tags, flashcards")
         .eq("resource_id", effectiveResourceId)
         .maybeSingle();
 
       if (analysis) {
-        resourceContext = `\nResource context: ${analysis.summary || ""}\nTags: ${(analysis.tags || []).join(", ")}`;
+        resourceContext = `\n\nYou are tutoring about this document:\nTitle and summary: ${analysis.summary || ""}\nFull content:\n${(analysis.full_text || "").substring(0, 30000)}\nTags: ${(analysis.tags || []).join(", ")}`;
       }
     }
 

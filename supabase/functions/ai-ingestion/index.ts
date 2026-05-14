@@ -103,6 +103,7 @@ Generate 5 flashcards and 5 quiz questions. Return ONLY the JSON object, no othe
       {
         resource_id: body.resource_id,
         summary: analysis.summary,
+        full_text: body.file_text.substring(0, 50000),
         metadata: analysis.metadata,
         tags: analysis.tags,
         flashcards: analysis.flashcards,
